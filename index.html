@@ -4,6 +4,7 @@
     <title>行读</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://lib.webstatic.cn/ajax/jquery/3.5.1/jquery.min.js"></script>
     <style>
       :root {
         --bg-color: #f5f7fa;
@@ -297,131 +298,142 @@
     </div>
 
     <script>
-      function showModal() {
-        document.getElementById("modal").style.display = "block";
-      }
-
-      function hideModal() {
-        document.getElementById("modal").style.display = "none";
-        document.getElementById("fileInput").value = "";
-        document.getElementById("titleInput").value = "";
-      }
-
-      function autoFillTitle() {
-        const fileInput = document.getElementById("fileInput");
-        const titleInput = document.getElementById("titleInput");
-        
-        if (fileInput.files[0]) {
-          const fileName = fileInput.files[0].name;
-          const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
-          titleInput.value = nameWithoutExt;
-        }
-      }
-
-      function loadArticles() {
-        const articles = JSON.parse(localStorage.getItem("articles") || "[]");
-        const list = document.getElementById("articleList");
-
-        if (articles.length === 0) {
-          list.innerHTML =
-            '<h3>文章列表</h3><div class="empty-state">暂无文章，点击上方按钮添加</div>';
-          return;
+      $(document).ready(function() {
+        function showModal() {
+          $('#modal').show();
         }
 
-        list.innerHTML = "<h3>文章列表</h3>";
-        articles.forEach((article, index) => {
-          const preview = article.content.substring(0, 100).replace(/\n/g, ' ') + '...';
-          list.innerHTML += `
-                    <div class="article">
-                        <div class="article-header">
-                            <a href="/read/?id=${article.id}" class="article-title">${article.title}</a>
-                            <button class="delete-btn" onclick="deleteArticle(${index})">删除</button>
-                        </div>
-                        <div class="article-preview">${preview}</div>
-                    </div>
-          `;
-        });
-      }
-
-      function addArticle() {
-        const fileInput = document.getElementById("fileInput");
-        const titleInput = document.getElementById("titleInput");
-
-        if (!fileInput.files[0] || !titleInput.value.trim()) {
-          alert("请选择文件并输入文章名称");
-          return;
+        function hideModal() {
+          $('#modal').hide();
+          $('#fileInput').val('');
+          $('#titleInput').val('');
         }
 
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const articles = JSON.parse(localStorage.getItem("articles") || "[]");
-          const newArticle = {
-            id: Date.now().toString(),
-            title: titleInput.value.trim(),
-            content: e.target.result,
-            createdAt: new Date().toISOString(),
+        function autoFillTitle() {
+          const file = $('#fileInput')[0].files[0];
+          if (file) {
+            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+            $('#titleInput').val(nameWithoutExt);
+          }
+        }
+
+        function loadArticles() {
+          const articles = JSON.parse(localStorage.getItem('articles') || '[]');
+          const $list = $('#articleList');
+          
+          if (articles.length === 0) {
+            $list.html('<h3>文章列表</h3><div class="empty-state">暂无文章，点击上方按钮添加</div>');
+            return;
+          }
+          
+          $list.html('<h3>文章列表</h3>');
+          articles.forEach((article, index) => {
+            const preview = article.content.substring(0, 100).replace(/\n/g, ' ') + '...';
+            $list.append(`
+              <div class="article">
+                <div class="article-header">
+                  <a href="/read/?id=${article.id}" class="article-title">${article.title}</a>
+                  <button class="delete-btn" onclick="deleteArticle(${index})">删除</button>
+                </div>
+                <div class="article-preview">${preview}</div>
+              </div>
+            `);
+          });
+        }
+
+        function addArticle() {
+          const file = $('#fileInput')[0].files[0];
+          const title = $('#titleInput').val().trim();
+          
+          if (!file || !title) {
+            alert('请选择文件并输入文章名称');
+            return;
+          }
+          
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const articles = JSON.parse(localStorage.getItem('articles') || '[]');
+            const newArticle = {
+              id: Date.now().toString(),
+              title: title,
+              content: e.target.result,
+              createdAt: new Date().toISOString()
+            };
+            articles.push(newArticle);
+            localStorage.setItem('articles', JSON.stringify(articles));
+            hideModal();
+            loadArticles();
           };
-          articles.push(newArticle);
-          localStorage.setItem("articles", JSON.stringify(articles));
-          hideModal();
-          loadArticles();
-        };
-        reader.readAsText(fileInput.files[0]);
-      }
-
-      function deleteArticle(index) {
-        if (confirm("确定要删除这篇文章吗？")) {
-          const articles = JSON.parse(localStorage.getItem("articles") || "[]");
-          articles.splice(index, 1);
-          localStorage.setItem("articles", JSON.stringify(articles));
-          loadArticles();
+          reader.readAsText(file);
         }
-      }
 
-      function showSettings() {
-        document.getElementById('settingsModal').style.display = 'block';
-        loadSettings();
-      }
-
-      function hideSettings() {
-        document.getElementById('settingsModal').style.display = 'none';
-      }
-
-      function loadSettings() {
-        const theme = localStorage.getItem('theme') || 'light';
-        document.getElementById('themeSelect').value = theme;
-      }
-
-      function changeTheme() {
-        const theme = document.getElementById('themeSelect').value;
-        localStorage.setItem('theme', theme);
-        applyTheme(theme);
-      }
-
-      function applyTheme(theme) {
-        const root = document.documentElement;
-        if (theme === 'dark') {
-          root.style.setProperty('--bg-color', '#1a1a1a');
-          root.style.setProperty('--text-color', '#ffffff');
-          root.style.setProperty('--card-bg', '#2d2d2d');
-          root.style.setProperty('--border-color', '#404040');
-          root.style.setProperty('--preview-color', '#b0b0b0');
-        } else {
-          root.style.setProperty('--bg-color', '#f5f7fa');
-          root.style.setProperty('--text-color', '#2c3e50');
-          root.style.setProperty('--card-bg', 'white');
-          root.style.setProperty('--border-color', '#ddd');
-          root.style.setProperty('--preview-color', '#7f8c8d');
+        window.deleteArticle = function(index) {
+          if (confirm('确定要删除这篇文章吗？')) {
+            const $article = $(`.article:eq(${index})`);
+            $article.fadeOut(300, function() {
+              const articles = JSON.parse(localStorage.getItem('articles') || '[]');
+              articles.splice(index, 1);
+              localStorage.setItem('articles', JSON.stringify(articles));
+              loadArticles();
+            });
+          }
         }
-      }
 
-      function initTheme() {
-        const theme = localStorage.getItem('theme') || 'light';
-        applyTheme(theme);
-      }
+        function showSettings() {
+          $('#settingsModal').show();
+          loadSettings();
+        }
 
-      initTheme();
-      loadArticles();
+        function hideSettings() {
+          $('#settingsModal').hide();
+        }
+
+        function loadSettings() {
+          const theme = localStorage.getItem('theme') || 'light';
+          $('#themeSelect').val(theme);
+        }
+
+        function changeTheme() {
+          const theme = $('#themeSelect').val();
+          localStorage.setItem('theme', theme);
+          applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+          const root = document.documentElement;
+          if (theme === 'dark') {
+            root.style.setProperty('--bg-color', '#1a1a1a');
+            root.style.setProperty('--text-color', '#ffffff');
+            root.style.setProperty('--card-bg', '#2d2d2d');
+            root.style.setProperty('--border-color', '#404040');
+            root.style.setProperty('--preview-color', '#b0b0b0');
+          } else {
+            root.style.setProperty('--bg-color', '#f5f7fa');
+            root.style.setProperty('--text-color', '#2c3e50');
+            root.style.setProperty('--card-bg', 'white');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--preview-color', '#7f8c8d');
+          }
+        }
+
+        function initTheme() {
+          const theme = localStorage.getItem('theme') || 'light';
+          applyTheme(theme);
+        }
+
+        // 绑定事件
+        window.showModal = showModal;
+        window.hideModal = hideModal;
+        window.addArticle = addArticle;
+        window.showSettings = showSettings;
+        window.hideSettings = hideSettings;
+        window.changeTheme = changeTheme;
+        
+        $('#fileInput').on('change', autoFillTitle);
+
+        initTheme();
+        loadArticles();
+      });
     </script>
     <div class="modal" id="settingsModal">
       <div class="modal-content">
