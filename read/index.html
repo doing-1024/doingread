@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title></title>
+    <title>行读 - 沉浸式阅读器</title>
     <script src="https://lib.webstatic.cn/ajax/jquery/3.5.1/jquery.min.js"></script>
     <style>
-      /* --- 保持原有样式不变 --- */
+      /* --- 基础样式 --- */
       .navbar {
         position: fixed;
         top: -60px;
@@ -74,6 +74,8 @@
           opacity: 0;
         }
       }
+
+      /* --- 设置面板样式 --- */
       .modal {
         display: none;
         position: fixed;
@@ -89,48 +91,72 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.9);
-        padding: 30px;
-        border-radius: 12px;
-        width: 320px;
+        background: rgba(15, 15, 15, 0.95);
+        padding: 25px;
+        border-radius: 16px;
+        width: 340px;
         color: #fff;
+        border: 1px solid #444;
       }
       .form-group {
-        margin-bottom: 15px;
+        margin-bottom: 20px;
       }
       .form-group label {
-        display: block;
-        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 14px;
+        color: #bbb;
+      }
+      .form-group label span {
+        color: #3498db;
+        font-weight: bold;
       }
       .form-group select,
       .form-group input {
         width: 100%;
-        padding: 10px;
+        padding: 8px;
         background: #333;
         color: #fff;
         border: 1px solid #555;
         border-radius: 6px;
       }
+      input[type="range"] {
+        height: 6px;
+        -webkit-appearance: none;
+        background: #444;
+        border: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #3498db;
+        border-radius: 50%;
+        cursor: pointer;
+      }
       .form-buttons {
         display: flex;
         justify-content: flex-end;
-        margin-top: 20px;
+        margin-top: 10px;
       }
       .btn {
-        padding: 10px 20px;
+        padding: 10px 24px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
-        background: #95a5a6;
+        background: #3498db;
         color: white;
+        font-weight: bold;
       }
+
       .progress-bar {
         position: fixed;
         bottom: -10px;
         left: 0;
         right: 0;
         height: 10px;
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
         transition: bottom 0.3s ease;
         z-index: 1000;
         cursor: pointer;
@@ -144,9 +170,13 @@
         width: 0%;
         transition: width 0.1s linear;
       }
+      .text {
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        transition: font-size 0.2s;
+      }
       @media (max-width: 768px) {
         .text {
-          font-size: 28px !important;
+          font-size: 26px !important;
         }
       }
     </style>
@@ -177,27 +207,57 @@
       <div class="progress-fill" id="progressFill"></div>
     </div>
 
+    <!-- 设置弹窗 -->
     <div class="modal" id="settingsModal">
       <div class="modal-content">
-        <h3>阅读器设置</h3>
+        <h3 style="margin-top: 0">阅读设置</h3>
+
         <div class="form-group">
-          <label>阅读器样式</label>
-          <select id="readerStyleSelect" onchange="changeReaderStyle()">
+          <label>模式</label>
+          <select id="readerStyleSelect" onchange="updateSettings()">
             <option value="breath">呼吸模式</option>
             <option value="typewriter">打字机模式</option>
           </select>
         </div>
+
         <div class="form-group">
-          <label>字体大小: <span id="fontSizeValue">36px</span></label>
+          <label>字号 <span id="fontSizeVal">36px</span></label>
           <input
             type="range"
             id="fontSizeSlider"
             min="20"
             max="80"
             value="36"
-            onchange="changeFontSize()"
+            oninput="updateSettings()"
           />
         </div>
+
+        <div class="form-group">
+          <label>显示速度 (快 → 慢) <span id="speedVal">100ms</span></label>
+          <input
+            type="range"
+            id="speedSlider"
+            min="20"
+            max="500"
+            step="10"
+            value="100"
+            oninput="updateSettings()"
+          />
+        </div>
+
+        <div class="form-group">
+          <label>句子停留时间 <span id="lingerVal">1.5s</span></label>
+          <input
+            type="range"
+            id="lingerSlider"
+            min="200"
+            max="5000"
+            step="100"
+            value="1500"
+            oninput="updateSettings()"
+          />
+        </div>
+
         <div class="form-buttons">
           <button class="btn" onclick="hideSettings()">确定</button>
         </div>
@@ -214,10 +274,7 @@
         padding: 0 40px;
       "
     >
-      <p
-        class="text"
-        style="font-size: 36px; line-height: 1.6; max-width: 800px; margin: 0"
-      ></p>
+      <p class="text" style="line-height: 1.6; max-width: 900px; margin: 0"></p>
     </div>
 
     <script>
@@ -227,13 +284,20 @@
         let isPlaying = true;
         let isDragging = false;
         let timers = [];
-        let readerStyle = localStorage.getItem("readerStyle") || "breath";
 
-        // --- 初始化数据 ---
-        const articles = JSON.parse(localStorage.getItem("articles") || "[]");
+        // --- 响应式配置参数 ---
+        let config = {
+          style: localStorage.getItem("readerStyle") || "breath",
+          fontSize: parseInt(localStorage.getItem("fontSize")) || 36,
+          speed: parseInt(localStorage.getItem("readerSpeed")) || 100, // 字间距或淡入时长
+          linger: parseInt(localStorage.getItem("readerLinger")) || 1500, // 停留时长
+        };
+
         const id = new URLSearchParams(window.location.search).get("id");
-        const storageKey = `progress_v1_${id}`; // 进度存储的 Key
+        const storageKey = `progress_v1_${id}`;
 
+        // 初始化数据
+        const articles = JSON.parse(localStorage.getItem("articles") || "[]");
         $.each(articles, function (index, item) {
           if (item.id == id) {
             $("#articleTitle").text(item.title);
@@ -245,23 +309,14 @@
           }
         });
 
-        // --- 进度存取逻辑 ---
-        function loadSavedProgress() {
-          const saved = localStorage.getItem(storageKey);
-          if (saved !== null) {
-            let index = parseInt(saved);
-            // 如果进度已经到最后一句，重置为 0，否则载入进度
-            currentIndex = index >= text_list.length - 1 ? 0 : index;
-          }
+        // 载入历史进度
+        const savedProgress = localStorage.getItem(storageKey);
+        if (savedProgress !== null) {
+          currentIndex = parseInt(savedProgress);
+          if (currentIndex >= text_list.length - 1) currentIndex = 0;
         }
 
-        function saveCurrentProgress() {
-          if (id) {
-            localStorage.setItem(storageKey, currentIndex);
-          }
-        }
-
-        // --- 核心播放控制 ---
+        // --- 播放逻辑 ---
         function clearAll() {
           timers.forEach(clearTimeout);
           timers = [];
@@ -271,11 +326,8 @@
         window.togglePlay = function () {
           isPlaying = !isPlaying;
           $("#playPauseBtn").text(isPlaying ? "⏸" : "▶️");
-          if (isPlaying) {
-            startReader();
-          } else {
-            clearAll();
-          }
+          if (isPlaying) startReader();
+          else clearAll();
         };
 
         $(document).on("keydown", function (e) {
@@ -285,39 +337,33 @@
           }
         });
 
-        function updateProgressUI(index) {
-          const progress = (index / (text_list.length - 1)) * 100;
-          $("#progressFill").css("width", progress + "%");
-          saveCurrentProgress(); // 每次 UI 更新时同步保存进度
-        }
-
         function startReader() {
           clearAll();
-          if (currentIndex >= text_list.length) {
-            currentIndex = 0; // 读完重置
-          }
+          if (currentIndex >= text_list.length) currentIndex = 0;
           if (!isPlaying) return;
 
-          if (readerStyle === "typewriter") {
-            showTypewriter();
-          } else {
-            showBreath();
-          }
+          const progress = (currentIndex / (text_list.length - 1)) * 100;
+          $("#progressFill").css("width", progress + "%");
+          localStorage.setItem(storageKey, currentIndex);
+
+          if (config.style === "typewriter") showTypewriter();
+          else showBreath();
         }
 
         function showTypewriter() {
-          if (!isPlaying) return;
-          updateProgressUI(currentIndex);
           const text = text_list[currentIndex];
           const $area = $(".text").css("opacity", "1").html("");
 
+          // 逐字输入速度取决于 config.speed
           for (let i = 0; i <= text.length; i++) {
             timers.push(
               setTimeout(() => {
                 $area.html(
                   text.substring(0, i) + '<span class="cursor">|</span>',
                 );
+
                 if (i === text.length) {
+                  // 停留时间取决于 config.linger
                   timers.push(
                     setTimeout(() => {
                       for (let j = text.length; j >= 0; j--) {
@@ -333,59 +379,93 @@
                                   setTimeout(() => {
                                     currentIndex++;
                                     startReader();
-                                  }, 500),
+                                  }, 300),
                                 );
                               }
                             },
-                            (text.length - j) * 50,
+                            (text.length - j) * (config.speed / 2),
                           ),
-                        );
+                        ); // 删除速度通常比输入快一倍
                       }
-                    }, 1000),
+                    }, config.linger),
                   );
                 }
-              }, i * 100),
+              }, i * config.speed),
             );
           }
         }
 
         function showBreath() {
-          if (!isPlaying) return;
-          updateProgressUI(currentIndex);
-          const $area = $(".text").text(text_list[currentIndex]);
+          const $area = $(".text").text(text_list[currentIndex]).hide();
+          // 淡入速度取决于 config.speed * 10 (缩放到毫秒级别)
+          const fadeTime = config.speed * 10;
 
-          $area.fadeIn(1500, function () {
+          $area.fadeIn(fadeTime, function () {
             timers.push(
               setTimeout(() => {
-                $area.fadeOut(1500, function () {
+                $area.fadeOut(fadeTime, function () {
                   currentIndex++;
                   startReader();
                 });
-              }, 1000),
+              }, config.linger),
             );
           });
         }
 
-        // --- 进度条拖拽 ---
-        function handleInteraction(e) {
+        // --- 设置管理 ---
+        window.updateSettings = function () {
+          config.style = $("#readerStyleSelect").val();
+          config.fontSize = $("#fontSizeSlider").val();
+          config.speed = parseInt($("#speedSlider").val());
+          config.linger = parseInt($("#lingerSlider").val());
+
+          // 更新UI显示
+          $("#fontSizeVal").text(config.fontSize + "px");
+          $("#speedVal").text(config.speed + "ms");
+          $("#lingerVal").text((config.linger / 1000).toFixed(1) + "s");
+          $(".text").css("font-size", config.fontSize + "px");
+
+          // 持久化
+          localStorage.setItem("readerStyle", config.style);
+          localStorage.setItem("fontSize", config.fontSize);
+          localStorage.setItem("readerSpeed", config.speed);
+          localStorage.setItem("readerLinger", config.linger);
+        };
+
+        window.showSettings = function () {
+          clearAll();
+          // 初始化滑动条位置
+          $("#readerStyleSelect").val(config.style);
+          $("#fontSizeSlider").val(config.fontSize);
+          $("#speedSlider").val(config.speed);
+          $("#lingerSlider").val(config.linger);
+          updateSettings();
+          $("#settingsModal").fadeIn(200);
+        };
+
+        window.hideSettings = function () {
+          $("#settingsModal").fadeOut(200);
+          if (isPlaying) startReader();
+        };
+
+        // --- 进度条交互 ---
+        function handleProgress(e) {
           const rect = $("#progressBar")[0].getBoundingClientRect();
-          const clickX = e.clientX - rect.left;
           const percentage = Math.max(
             0,
-            Math.min(100, (clickX / rect.width) * 100),
+            Math.min(100, ((e.clientX - rect.left) / rect.width) * 100),
           );
           currentIndex = Math.floor(
             (percentage / 100) * (text_list.length - 1),
           );
-
-          updateProgressUI(currentIndex); // 包含保存进度逻辑
+          $("#progressFill").css("width", percentage + "%");
           $(".text")
             .stop(true, true)
             .css("opacity", "1")
             .show()
             .html(
               text_list[currentIndex] +
-                (readerStyle === "typewriter"
+                (config.style === "typewriter"
                   ? '<span class="cursor">|</span>'
                   : ""),
             );
@@ -394,13 +474,11 @@
         $("#progressBar").on("mousedown", function (e) {
           isDragging = true;
           clearAll();
-          handleInteraction(e);
+          handleProgress(e);
         });
-
         $(document).on("mousemove", function (e) {
-          if (isDragging) handleInteraction(e);
+          if (isDragging) handleProgress(e);
         });
-
         $(document).on("mouseup", function () {
           if (isDragging) {
             isDragging = false;
@@ -408,7 +486,7 @@
           }
         });
 
-        // --- UI 设置 ---
+        // --- 自动显示控制 ---
         let showTimeout;
         $(document).on("mousemove", function (e) {
           if (e.clientY <= 80 || e.clientY >= $(window).height() - 50) {
@@ -416,42 +494,16 @@
             clearTimeout(showTimeout);
           } else {
             showTimeout = setTimeout(() => {
-              if (!isDragging) $("#navbar, #progressBar").removeClass("show");
+              if (!isDragging && !$("#settingsModal").is(":visible")) {
+                $("#navbar, #progressBar").removeClass("show");
+              }
             }, 2000);
           }
         });
 
-        window.showSettings = function () {
-          clearAll();
-          $("#settingsModal").fadeIn(200);
-        };
-        window.hideSettings = function () {
-          $("#settingsModal").fadeOut(200);
-          if (isPlaying) startReader();
-        };
-
-        window.changeReaderStyle = function () {
-          readerStyle = $("#readerStyleSelect").val();
-          localStorage.setItem("readerStyle", readerStyle);
-        };
-
-        window.changeFontSize = function () {
-          const size = $("#fontSizeSlider").val();
-          localStorage.setItem("fontSize", size);
-          $("#fontSizeValue").text(size + "px");
-          $(".text").css("font-size", size + "px");
-        };
-
-        // --- 初始化执行 ---
-        loadSavedProgress(); // 1. 载入进度
-
-        const savedSize = localStorage.getItem("fontSize") || "36";
-        $("#fontSizeSlider").val(savedSize);
-        $("#fontSizeValue").text(savedSize + "px");
-        $(".text").css("font-size", savedSize + "px");
-        $("#readerStyleSelect").val(readerStyle);
-
-        startReader(); // 2. 开始播放
+        // 初始化
+        $(".text").css("font-size", config.fontSize + "px");
+        startReader();
       });
     </script>
   </body>
