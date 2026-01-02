@@ -3,6 +3,7 @@
   <head>
     <title>行读</title>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       :root {
         --bg-color: #f5f7fa;
@@ -25,6 +26,50 @@
         max-width: 800px;
         margin: 0 auto;
         padding: 20px;
+      }
+      @media (max-width: 768px) {
+        .container {
+          padding: 15px;
+        }
+        .header {
+          padding: 25px;
+        }
+        .header h1 {
+          font-size: 28px;
+          margin-bottom: 15px;
+        }
+        .add-btn {
+          padding: 15px 25px;
+          font-size: 16px;
+        }
+        .articles {
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 18px;
+          padding: 18px;
+        }
+        .article {
+          padding: 18px;
+        }
+        .article-title {
+          font-size: 16px;
+        }
+        .article-preview {
+          font-size: 14px;
+        }
+        .settings-icon {
+          width: 45px;
+          height: 45px;
+          font-size: 20px;
+        }
+        .modal-content {
+          width: 90%;
+          max-width: 400px;
+          padding: 25px;
+        }
+        .delete-btn {
+          padding: 8px 12px;
+          font-size: 14px;
+        }
       }
       .header {
         background: var(--card-bg);
